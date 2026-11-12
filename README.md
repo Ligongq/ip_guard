@@ -6,10 +6,8 @@
 DLP-Decrypt.exe        GUI 单文件（9.4 MB），可选择文件 / 文件夹 / 拖拽
 decrypt_text.py        核心逻辑，可独立运行
 decrypt_gui.py         GUI 源码
-decrypt_text.bat       轻量入口（命令行场景）
+解密文本文件.bat       轻量入口（命令行场景）
 ```
-
-> 只跑命令行的话，`decrypt_text.py` + `decrypt_text.bat` 两个文件就够；`exe` 不是必需的。
 
 ---
 
@@ -43,6 +41,15 @@ IP-Guard 这类 DLP 会把文件在磁盘上整体加密（文件头为 `%TSD-He
 
 用 `robocopy` 去判断「有没有加密」，等于用已经解密的证据来证明文件没被加密，
 结果永远是「全部是明文」。这是本工具第一版最严重的 bug。
+
+**同源陷阱：探测副本不能沿用原扩展名。**
+
+`cmd copy` 虽然读的是密文，但如果把副本写成 `probe.json`，随后 Python 再读这个
+副本时，驱动**照样会透明解密**——检测环节又变成「用明文判断是否加密」。
+实测：`Config/MPTestConfig/Profiles/*.json` 五个文件全是 `%TSD-Header` 密文，
+工具却报告「6 个候选文件全部是明文」。
+
+修正：探测副本一律固定命名为 `probe.bin`，用不可被解密的扩展名，绕开透明解密。
 
 ### 2. `cmd copy` 会把 `+` 号当文件名连接符
 
@@ -162,6 +169,7 @@ DLP-Decrypt.exe --selftest      :: 自检，输出 %TEMP%\dlp_selftest.log
 
 ```bat
 pip install pyinstaller
+cd tools
 
 python -m PyInstaller --onefile --windowed --name "DLP-Decrypt" ^
     --add-data "decrypt_text.py;." --noconfirm ^

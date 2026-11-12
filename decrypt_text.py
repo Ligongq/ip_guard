@@ -89,13 +89,17 @@ def _cmd(args: list[str]) -> bool:
     return res.returncode == 0
 
 
-def copy_raw(src: Path, dest_dir: Path) -> Path | None:
-    """用 cmd.exe 把 src 的原始字节复制到 dest_dir（保留文件名）。
+def copy_raw(src: Path, dest_dir: Path, dest_name: str = "probe.bin") -> Path | None:
+    """用 cmd.exe 把 src 的原始字节复制到 dest_dir。
 
     只走 ``copy``：它不在 DLP 白名单，读到的是磁盘密文。含 ``+`` 号的路径
     会失败（``copy`` 把 + 当多文件连接符），由调用方回退到 tar。
+
+    🔴 ``dest_name`` 必须使用**不可被 DLP 解密**的扩展名（如 ``.bin``）。
+    若沿用原文件名（如 ``x.json``），Python 随后读取该副本时会被驱动透明解密，
+    拿到的就是明文——用“已解密的证据”判断“是否加密”，必然误报为明文。
     """
-    dest = dest_dir / src.name
+    dest = dest_dir / dest_name
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
         if dest.exists():
@@ -203,8 +207,12 @@ def _tar_write_bytes(raw: bytes, name: str, dest_dir: Path, workspace: Path) -> 
 
 
 def read_raw_head(path: Path, workspace: Path) -> bytes | None:
-    """用非白名单进程读取原始字节，返回文件头 96 字节；失败返回 None。"""
-    probe = copy_raw(path, workspace / "probe")
+    """用非白名单进程读取原始字节，返回文件头 96 字节；失败返回 None。
+
+    副本一律落成 ``probe.bin``：扩展名一旦与被探测文件相同，Python 读取副本
+    时会被 DLP 透明解密，检测就失效了。
+    """
+    probe = copy_raw(path, workspace, "probe.bin")
     if probe is not None:
         try:
             return probe.read_bytes()[:96]
